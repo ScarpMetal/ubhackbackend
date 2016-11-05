@@ -83,10 +83,9 @@
         client.emit('onconnected', { id: client.userid } );
 
 
-          sio.on('chat message', function(msg){
-            console.log("yo");
-            console.log('msg: ' + msg);
-          });
+        client.on('chatMessage', function(msg){
+          console.log('msg: ' + msg);
+        });
 
             //Useful to know when someone connects
         console.log('\t socket.io:: player ' + client.userid + ' connected');
