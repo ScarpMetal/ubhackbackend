@@ -333,15 +333,15 @@
           switch(msgOb.action) {
               case "in_lobby":
                 console.log("sending for lobby");
-                client.emit(PLAYER_INFO, getPlayersInLobby(client.uuid));
+                client.emit(PLAYER_INFO, getPlayersInLobby(msgOb.uuid));
                 break;
               case "create_player":
                 console.log("creating player finalization [" + msgOb.name + "]");
                 // setPlayerName(msgOb.uuid, msgOb.name);
+                players.push(new Player(client, msgOb.name));
                 players.forEach(function(item,index){
                   item.client.emit(PLAYER_INFO, getPlayersInLobby(item.client.uuid));
                 });
-                players.push(new Player(client, msgOb.name));
                 break;
               case "game_player_data":
                 console.log("request player data");
@@ -367,7 +367,10 @@
                         fromP = item;
                       }
                     });
-                    games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid));
+                    if(fromP != null && toP != null) {
+                      console.log("Game created");
+                      games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid));
+                    }
                   }
                 }
                 break;
