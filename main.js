@@ -53,14 +53,58 @@
       this.yVel = 0;
       this.color = "#ff0000";
       this.state = STATE_IN_LOBBY;
+      this.speed = 0
       this.role = "";
       this.score = 0;
+      this.friction = .8;
       this.game = null;
-      this.up_press = false;
-      this.down_press = false;
-      this.left_press = false;
-      this.right_press = false;
+      // this.up_press = false;
+      // this.down_press = false;
+      // this.left_press = false;
+      // this.right_press = false;
       this.level = 0;
+    }
+
+    Player.prototype.update = function(left_press,up_press,down_press,right_press) {
+        if (left_press) { //left
+          if (this.xVel > -this.speed) {
+            this.xVel--;
+          }
+        }
+        if (right_press) { //right
+          if (this.xVel < this.speed) {
+            this.xVel++;
+          }
+        }
+        if (up_press) { //up
+          if (this.yVel > -this.speed) {
+            this.yVel--;
+          }
+        }
+        if (down_press) { //down
+          if (this.yVel < this.speed) {
+            this.yVel++;
+          }
+        }
+    }
+
+    Player.prototype.evaluate = function(game) {
+      this.yVel *= this.friction;
+      this.yPos += this.yVel;
+      this.xVel *= this.friction;
+      this.xPos += this.xVel;
+
+      if (this.xPos >= game.viewportWidth - this.size) {
+          this.xPos = game.viewportWidth - this.size;
+      } else if (this.xPos <= this.size) {
+          this.xPos = this.size;
+      }
+
+      if (this.yPos > game.viewportHeight - this.size) {
+          this.yPos = game.viewportHeight - this.size;
+      } else if (this.yPos <= this.size) {
+          this.yPos = this.size;
+      }
     }
 
     /*
@@ -110,15 +154,20 @@
     /*
      * Object containing information about the player.
      */
-    var Game = function Game(fromPlayer, fromUuid, toPlayer, toUuid) {
+    var Game = function Game(fromPlayer, fromUuid, toPlayer, toUuid, viewportHeight, viewportWidth) {
       this.uuid = UUID(); //specific id of game
       this.fromUuid = fromUuid; //original game sender
-      this.fromPlayer = this.fromPlayer;
+      this.fromPlayer = fromPlayer;
 
       this.toUuid = toUuid; //original game recipient
       this.toPlayer = toPlayer;
       this.linkLevels = [];
+      this.interval = null;
+
+      this.viewportHeight = viewportHeight;
+      this.viewportWidth = viewportWidth;
       
+      console.log(this.uuid);
       //send out requests to initial players
       toPlayer.client.emit(PLAYER_INFO, JSON.stringify({
         "action" : "request_to_play_player",
@@ -160,6 +209,18 @@
       }
       this.fromPlayer.client.emit("playerInfo", jsonPlayers);
       this.toPlayer.client.emit("playerInfo", jsonPlayers);
+    }
+
+    function runGame(g){
+      g.fromPlayer.evaluate();
+      g.toPlayer.evaluate();
+      g.sendPlayerData();
+      setTimeout(runGame(g), 10);
+    }
+
+    Game.prototype.startGame = function() {
+      var g = this;
+      this.interval = setInterval(function(){runGame(g)},1);
     }
 
     /*
@@ -303,12 +364,14 @@
      * Returns the game related to the uuid
      */
     function getGameFromGameUuid(gameUuid) {
+      console.log("games length [" + games.length + "]");
+      var out = null;
       games.forEach(function(item,index) {
         if(item.uuid == gameUuid) {
-          return item;
+          out = item;
         }
       });
-      return null;
+      return out;
     }
 
     sio.sockets.on('connection', function (client) {
@@ -369,7 +432,7 @@
                     });
                     if(fromP != null && toP != null) {
                       console.log("Game created [" + fromP + "] [" + fromP.client.uuid + "] [" + toP + "] [" + toP.client.uuid + "]");
-                      games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid));
+                      games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid, msgOb.viewportHeight, msgOb.viewportWidth));
                     }
                   }
                 }
@@ -379,6 +442,7 @@
                 if(msgOb.status == "accept") {
                   var game = getGameFromGameUuid(msgOb.game_uuid);
                   if(game != null && game.toPlayer == client.uuid) {
+                    game.startGame();
                     game.toPlayer.client.emit(PLAYER_INFO,JSON.string({
                       "action" : "start_game",
                       "game_uuid" : game.uuid
@@ -394,9 +458,10 @@
                   //find game with this id
                   var game = getGameFromGameUuid(msgOb.game_uuid);
                   //check to_uuid is correct
-                  if(game != null && game.to_uuid == client.uuid) {
+                  console.log("response to play player [" + game.fromPlayeruuid + "] [" + client.uuid + "]");
+                  if(game != null && game.toUuid == client.uuid) {
                     //forward back to fromUserUUid
-                    game.fromPlayer.emit(PLAYER_INFO, msg);
+                    game.fromPlayer.client.emit(PLAYER_INFO, msg);
                     //remove game related to uuid
                     games = games.filter(function(e) {
                       return e.uuid != msgOb.game_uuid;
