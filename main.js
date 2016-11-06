@@ -60,6 +60,14 @@
       this.down_press = false;
       this.left_press = false;
       this.right_press = false;
+      this.level = 0;
+    }
+
+    /*
+     * Returns whether is chaser.
+     */
+    Player.prototype.isChaser = function() {
+      return (role == ROLE_CHASER);
     }
 
     /*
@@ -83,6 +91,31 @@
     /*
      * Object containing information about the player.
      */
+    var Link = function Link(xPos, yPos, width, height, url) {
+      this.xPos = xPos;
+      this.yPos = yPos;
+      this.width = width;
+      this.height = height;
+      this.url = url;
+    }
+
+    /*
+     * Object containing information about the Links.
+     */
+    var LinkPages = function LinkPages() {
+      this.links = [];
+      this.chosen = null;
+    }
+
+    LinkPages.prototype.addLinks = function(arr) {
+      arr.forEach(function(item,index){
+        // TODO ADD LINKS
+      });
+    }
+
+    /*
+     * Object containing information about the player.
+     */
     var Game = function Game(fromPlayer, fromUuid, toPlayer, toUuid) {
       this.uuid = UUID(); //specific id of game
       this.fromUuid = fromUuid; //original game sender
@@ -90,6 +123,7 @@
 
       this.toUuid = toUuid; //original game recipient
       this.toPlayer = toPlayer;
+      this.LinkPages = new LinkPages();
       
       //send out requests to initial players
       toPlayer.client.emit(PLAYER_INFO, JSON.stringify({
@@ -134,6 +168,9 @@
       this.toPlayer.client.emit("playerInfo", jsonPlayers);
     }
 
+    /*
+     * Updates what the player is pressing
+     */
     Game.prototype.updatePlayer = function(msgJson, uuid){
       if(fromUuid == uuid) {
         fromPlayer.up_press = msgJson.up_press;
@@ -145,6 +182,25 @@
         toPlayer.down_press = msgJson.down_press;
         toPlayer.left_press = msgJson.left_press;
         toPlayer.right_press = msgJson.right_press;
+      }
+    }
+
+    /*
+     * Spacebar was hit check if in bounds.
+     */
+    Game.prototype.spaceBar = function(uuid){
+      if(fromUuid == uuid) {
+        if(fromPlayer.isChaser()) {
+          //TODO LOOK THROUGH LINKS
+        } else {
+          //TODO LOOK THROUGH LINKS
+        }
+      } else if(toUuid == uuid) {
+        if(toPlayer.isChaser()) {
+          //TODO LOOK THROUGH LINKS
+        } else {
+          //TODO LOOK THROUGH LINKS
+        }
       }
     }
 
@@ -335,6 +391,12 @@
                   game.updatePlayer(msgOb, client.uuid);
                 }
                 break;
+              case "space_bar":
+                console.log("space bar hit");
+                var game = getGameFromGameUuid(msgOb.game_uuid);
+                if(game != null) {
+                  game.updatePlayer(msgOb, client.uuid);
+                }
             };
         });
 
