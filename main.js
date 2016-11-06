@@ -44,9 +44,9 @@
     /*
      * Sets up initial player object 
      */
-    var Player = function Player(client) {//, name, xPos, yPos, xVel, yVel, color, state, role, score) {
+    var Player = function Player(client, name){//, xPos, yPos, xVel, yVel, color, state, role, score) {
       this.client = client;
-      this.name = "";
+      this.name = name;
       this.xPos = 0;
       this.yPos = 0;
       this.xVel = 0;
@@ -56,7 +56,6 @@
       this.role = "";
       this.score = 0;
       this.game = null;
-      this.create();
     }
 
     /*
@@ -70,18 +69,6 @@
           "uuid" : this.client.uuid
         });
     }
-
-    /*
-     * Part of player setting up process.
-     */
-    Player.prototype.create = function() {
-      var temp = JSON.stringify( {
-          "action" : "create_player",
-          "uuid" : this.client.uuid
-      });
-      this.client.emit(PLAYER_INFO, temp);
-    }
-
     /*
      * Returns whether the player is in lobby.
      */
@@ -92,9 +79,20 @@
     /*
      * Object containing information about the player.
      */
-    var Game = function Game(playerArr) {
-      this.playerArr = playerArr; //list of players in game
+    var Game = function Game(fromPlayer, fromUuid, toPlayer, toUuid) {
       this.uuid = UUID(); //specific id of game
+      this.fromUuid = fromUuid; //original game sender
+      this.fromPlayer = this.fromPlayer;
+
+      this.toUuid = toUuid; //original game recipient
+      this.toPlayer = toPlayer;
+      
+      //send out requests to initial players
+      toPlayer.client.emit(PLAYER_INFO, JSON.stringify({
+        "action" : "request_to_play_player",
+        "from_uuid" : this.fromUuid,
+        "game_uuid" : this.uuid
+      }));
     }
 
     /*
@@ -102,16 +100,18 @@
      * as a JSON array of player data.
      */
     function getPlayerDataAsJSON(game) {
-      var pData = [];
-      game.playerArr.forEach(function (item) {
-        var data = {
-          "xPos" : item.player.xPos,
-          "yPos" : item.player.yPos,
-          "color" : item.player.color,
-          "score" : item.color.score,
-        };
-        var u = item.client.uuid;
-        pData.push({ [u] : data});
+      var pData = []
+      pdata.push({
+        "xPos" : game.fromPlayer.player.xPos,
+        "yPos" : game.fromPlayer.player.yPos,
+        "color" : game.fromPlayer.player.color,
+        "score" : game.fromPlayer.color.score,
+      });
+      pdata.push({
+        "xPos" : game.toPlayer.player.xPos,
+        "yPos" : game.toPlayer.player.yPos,
+        "color" : game.toPlayer.player.color,
+        "score" : game.toPlayer.color.score,
       });
       console.log("data [" + JSON.stringify(pData) + "]");
       return pData;
@@ -125,24 +125,25 @@
         "action" : "game_player_data",
         "players" : getPlayerDataAsJSON(this)
       }
-      this.playerArr.forEach(function(item) {
-        item.client.emit("playerInfo", jsonPlayers);
-      });
+      this.fromPlayer.client.emit("playerInfo", jsonPlayers);
+      this.toPlayer.client.emit("playerInfo", jsonPlayers);
     }
 
     //List of overall players in the whole application
     var players = [];
+    //List of all games
+    var games = [];
 
     /*
      *  Returns a list of Users that are in a Lobby
      */
-    function getPlayersInLobby() {
+    function getPlayersInLobby(myUuid) {
       var uList = [];
       players.forEach(function(item, index){
         console.log("item [" + item.name + "]");
-        if(item.inLobby()) {
+        if(item.inLobby() && item.client.uuid != myUuid) {
           uuID = item.client.uuid;
-          uList.push( JSON.parse("{\"" + uuID + "\":\"" + item.name + "\"}"));
+          uList.push( {[uuID] : item.name });
         }
       });
       return JSON.stringify({
@@ -155,14 +156,14 @@
      * Sets uuid for user up with a player name.
      * ONLY SHOULD BE USED ONCE!!! ON PLAYER SETUP
      */
-    function setPlayerName(uuid, playerName) {
-      players.forEach(function(item, index){
-        if(item.client.uuid == uuid) {
-          item.name = playerName
-        }
-        // console.log("player [" + item.name + "]");
-      });
-    }
+    // function setPlayerName(uuid, playerName) {
+    //   players.forEach(function(item, index){
+    //     if(item.client.uuid == uuid) {
+    //       item.name = playerName
+    //     }
+    //     // console.log("player [" + item.name + "]");
+    //   });
+    // }
 
     /*
      * Removes player from players
@@ -181,12 +182,54 @@
       });
     }
 
+    /*
+     * Checks whether either player is in a game.
+     */
+    function eitherPlayerInGame(fromUuid, toUuid) {
+      players.forEach(function(item,each){
+        if(item.client.uuid == fromUuid || item.client.uuid == toUuid) {
+          return true;
+        }
+      });
+      return false;
+    }
+
+    /*
+     * Checks whether either player is in a game.
+     */
+    function searchForRepeatRequest(fromUuid) {
+      games.forEach(function(item,index) {
+        if(item.fromUuid == fromUuid) {
+          return true;
+        }
+      });
+      return false;
+    }
+
+    /*
+     * Returns the game related to the uuid
+     */
+    function getGameFromGameUuid(gameUuid) {
+      games.forEach(function(item,index) {
+        if(item.uuid == gameUuid) {
+          return item;
+        }
+      });
+      return null;
+    }
+
     sio.sockets.on('connection', function (client) {
 
         client.uuid = UUID();
 
         //Add new user to a list
-        players.push(new Player(client));
+        // players.push(new Player(client));
+
+        var temp = JSON.stringify( {
+            "action" : "create_player",
+            "uuid" : client.uuid
+        });
+        client.emit(PLAYER_INFO, temp);
 
         client.on('chatMessage', function(msg){
           console.log('msg: ' + msg);
@@ -198,21 +241,71 @@
           switch(msgOb.action) {
               case "in_lobby":
                 console.log("sending for lobby");
-                client.emit(PLAYER_INFO, getPlayersInLobby());
+                client.emit(PLAYER_INFO, getPlayersInLobby(client.uuid));
+                break;
               case "create_player":
-                console.log("creating player finalization");
-                setPlayerName(msgOb.uuid, msgOb.name);
+                console.log("creating player finalization [" + msgOb.name + "]");
+                // setPlayerName(msgOb.uuid, msgOb.name);
+                players.push(new Player(client, msgOb.name));
+                break;
               case "game_player_data":
                 //ONLY FOR TESTING
                 console.log("request player data");
                 // client.emit(PLAYER_INFO, );
+                break;
               case "request_to_play_player":
                 console.log("req to play");
+                // checks if either player is in a game
+                if(!eitherPlayerInGame(client.uuid, msgOb.to_uuid)) {
+                  // checks if same player already requested
+                  if(!searchForRepeatRequest(client.uuid)) {
+                    //add new game with player that is sent to
+                    var fromP;
+                    var toP;
+                    players.forEach(function(item,index){
+                      if(item.client.uuid == msgOb.to_uuid) {
+                        toP = item;
+                      } else if(item.client.uuid == client.uuid) {
+                        fromP = item;
+                      }
+                    });
+                    games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid));
+                  }
+                }
+                break;
+              case "response_to_play_player":
+                console.log("response to play player");
+                if(msgOb.status == "accept") {
+                  var game = getGameFromGameUuid(msgOb.game_uuid);
+                  if(game != null && game.toPlayer == client.uuid) {
+                    game.toPlayer.client.emit(PLAYER_INFO,JSON.string({
+                      "action" : "start_game",
+                      "game_uuid" : game.uuid
+                    }));
+                    game.fromPlayer.client.emit(PLAYER_INFO,JSON.string({
+                      "action" : "start_game",
+                      "game_uuid" : game.uuid
+                    }));
+                  }
+                } else if (msgOb.status == "denied") {
+                  //find game with this id
+                  var game = getGameFromGameUuid(msgOb.game_uuid);
+                  //check to_uuid is correct
+                  if(game != null && game.to_uuid == client.uuid) {
+                    //forward back to fromUserUUid
+                    game.fromPlayer.emit(PLAYER_INFO, msg);
+                    //remove game related to uuid
+                    games = games.filter(function(e) {
+                      return e.uuid != msgOb.game_uuid;
+                    });
+                  }
+                }
+                break;
             };
         });
 
         //Useful to know when someone connects
-        console.log('\t socket.io:: player ' + client.userid + ' connected');
+        console.log('\t socket.io:: player ' + client.uuid + ' connected');
         
         //When this client disconnects
         client.on('disconnect', function () {

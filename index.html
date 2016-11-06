@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<input type="button" onclick="requestPlay()">Request toPlay </input>
 		<title> Real time multi-player games with HTML5</title>
 		<style type="text/css">
 			html , body {
@@ -23,14 +24,20 @@
 		<script type="text/javascript">
 
 				//This is all that needs
-			var socket = io.connect('/');
+			var socket = io.connect
 
+			//socket.
 				//Now we can listen fror that event
 			socket.on('onconnected', function( data ) {
 
 					//Note that the data is the object we sent from the server, as is. So we can assume its id exists. 
 		  		console.log( 'Connected successfully to the socket.io server. My server side ID is ' + data.id );
 		  	});
+			var players;
+			function requestPlay() {
+
+				// players[0].uuid
+			}
 
 		  	socket.on('playerInfo', function(data) {
 		  		console.log( 'data recieved: ' + data );
@@ -41,6 +48,8 @@
 		  				"name" : "bob",
 		  				"uuid" : t.uuid
 		  			}));
+		  		} else if(t.action == "in_lobby") {
+		  			players = t.players;
 		  		}
 		  	});
 
