@@ -25,12 +25,23 @@
 				//This is all that needs
 			var socket = io.connect('/');
 
-				//Now we can listen for that event
+				//Now we can listen fror that event
 			socket.on('onconnected', function( data ) {
 
 					//Note that the data is the object we sent from the server, as is. So we can assume its id exists. 
 		  		console.log( 'Connected successfully to the socket.io server. My server side ID is ' + data.id );
+		  	});
 
+		  	socket.on('playerInfo', function(data) {
+		  		console.log( 'data recieved: ' + data );
+		  		var t = JSON.parse(data);
+		  		if(t.action == "create_player") {
+		  			socket.emit("playerInfo", JSON.stringify({
+		  				"action" : "create_player",
+		  				"name" : "bob",
+		  				"uuid" : t.uuid
+		  			}));
+		  		}
 		  	});
 
 		</script>
