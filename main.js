@@ -231,8 +231,9 @@
      */
     function getPlayersInLobby(myUuid) {
       var uList = [];
+      console.log("length [" + players.length + "] [" + myUuid + "]");
       players.forEach(function(item, index){
-        console.log("item [" + item.name + "]");
+        console.log("item [" + item.name + "] [" + item.client.uuid + "]");
         if(item.inLobby() && item.client.uuid != myUuid) {
           uuID = item.client.uuid;
           uList.push( {[uuID] : item.name });
@@ -314,9 +315,6 @@
 
         client.uuid = UUID();
 
-        //Add new user to a list
-        // players.push(new Player(client));
-
         var temp = JSON.stringify( {
             "action" : "create_player",
             "uuid" : client.uuid
@@ -333,15 +331,17 @@
           switch(msgOb.action) {
               case "in_lobby":
                 console.log("sending for lobby");
-                client.emit(PLAYER_INFO, getPlayersInLobby(msgOb.uuid));
+                client.emit(PLAYER_INFO, getPlayersInLobby(client.uuid));
                 break;
               case "create_player":
                 console.log("creating player finalization [" + msgOb.name + "]");
                 // setPlayerName(msgOb.uuid, msgOb.name);
-                players.push(new Player(client, msgOb.name));
-                players.forEach(function(item,index){
-                  item.client.emit(PLAYER_INFO, getPlayersInLobby(item.client.uuid));
-                });
+                if(players.filter(function(index){index.client.uuid == client.uuid}).length == 0) {
+                  players.push(new Player(client, msgOb.name));
+                  players.forEach(function(item,index){
+                    item.client.emit(PLAYER_INFO, getPlayersInLobby(item.client.uuid));
+                  });
+                }
                 break;
               case "game_player_data":
                 console.log("request player data");
@@ -368,14 +368,14 @@
                       }
                     });
                     if(fromP != null && toP != null) {
-                      console.log("Game created");
+                      console.log("Game created [" + fromP + "] [" + fromP.client.uuid + "] [" + toP + "] [" + toP.client.uuid + "]");
                       games.push(new Game(fromP, fromP.client.uuid, toP, toP.client.uuid));
                     }
                   }
                 }
                 break;
               case "response_to_play_player":
-                console.log("response to play player");
+                console.log("response to play player [" + msgOb.status + "]");
                 if(msgOb.status == "accept") {
                   var game = getGameFromGameUuid(msgOb.game_uuid);
                   if(game != null && game.toPlayer == client.uuid) {
@@ -436,6 +436,6 @@
             console.log('\t socket.io:: client disconnected ' + client.uuid );
             //TODO: FIX this up
             //Remove player from uList
-            // playerDisconnect(client.uuid);
+            playerDisconnect(client.uuid);
         }); //client.on disconnect
     }); //sio.sockets.on connection
