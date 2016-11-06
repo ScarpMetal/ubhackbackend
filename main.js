@@ -10,7 +10,7 @@
         server          = http.createServer(app);
 
     //Tell the server to listen for incoming connections
-    server.listen( gameport );
+    server.listen( gameport, "128.205.27.232" );
     var io              = require('socket.io').listen(server);
 
     //Log something so we know that it succeeded.
@@ -56,6 +56,10 @@
       this.role = "";
       this.score = 0;
       this.game = null;
+      this.up_press = false;
+      this.down_press = false;
+      this.left_press = false;
+      this.right_press = false;
     }
 
     /*
@@ -101,18 +105,8 @@
      */
     function getPlayerDataAsJSON(game) {
       var pData = []
-      pdata.push({
-        "xPos" : game.fromPlayer.player.xPos,
-        "yPos" : game.fromPlayer.player.yPos,
-        "color" : game.fromPlayer.player.color,
-        "score" : game.fromPlayer.color.score,
-      });
-      pdata.push({
-        "xPos" : game.toPlayer.player.xPos,
-        "yPos" : game.toPlayer.player.yPos,
-        "color" : game.toPlayer.player.color,
-        "score" : game.toPlayer.color.score,
-      });
+      pdata.push();
+      pdata.push();
       console.log("data [" + JSON.stringify(pData) + "]");
       return pData;
     }
@@ -123,10 +117,35 @@
     Game.prototype.sendPlayerData = function() {
       var jsonPlayers = {
         "action" : "game_player_data",
-        "players" : getPlayerDataAsJSON(this)
+        [toUuid] : {
+              "xPos" : game.fromPlayer.player.xPos,
+              "yPos" : game.fromPlayer.player.yPos,
+              "color" : game.fromPlayer.player.color,
+              "score" : game.fromPlayer.color.score,
+            },
+        [fromUuid] : {
+            "xPos" : game.toPlayer.player.xPos,
+            "yPos" : game.toPlayer.player.yPos,
+            "color" : game.toPlayer.player.color,
+            "score" : game.toPlayer.color.score,
+          }
       }
       this.fromPlayer.client.emit("playerInfo", jsonPlayers);
       this.toPlayer.client.emit("playerInfo", jsonPlayers);
+    }
+
+    Game.prototype.updatePlayer = function(msgJson, uuid){
+      if(fromUuid == uuid) {
+        fromPlayer.up_press = msgJson.up_press;
+        fromPlayer.down_press = msgJson.down_press;
+        fromPlayer.left_press = msgJson.left_press;
+        fromPlayer.right_press = msgJson.right_press;
+      } else if(toUuid == uuid) {
+        toPlayer.up_press = msgJson.up_press;
+        toPlayer.down_press = msgJson.down_press;
+        toPlayer.left_press = msgJson.left_press;
+        toPlayer.right_press = msgJson.right_press;
+      }
     }
 
     //List of overall players in the whole application
@@ -246,11 +265,17 @@
               case "create_player":
                 console.log("creating player finalization [" + msgOb.name + "]");
                 // setPlayerName(msgOb.uuid, msgOb.name);
+                players.forEach(function(item,index){
+                  item.client.emit(PLAYER_INFO, getPlayersInLobby(item.client.uuid));
+                });
                 players.push(new Player(client, msgOb.name));
                 break;
               case "game_player_data":
-                //ONLY FOR TESTING
                 console.log("request player data");
+                var game = games.filter(function(e) {(e.fromUuid == client.uuid || e.toUuid == client.uuid)});
+                if(game != null) {
+                  game.sendPlayerData();
+                }
                 // client.emit(PLAYER_INFO, );
                 break;
               case "request_to_play_player":
@@ -286,6 +311,8 @@
                       "action" : "start_game",
                       "game_uuid" : game.uuid
                     }));
+
+                    //TODO GAME START
                   }
                 } else if (msgOb.status == "denied") {
                   //find game with this id
@@ -301,6 +328,13 @@
                   }
                 }
                 break;
+              case "direction":
+                console.log("direction for game");
+                var game = getGameFromGameUuid(msgOb.game_uuid);
+                if(game != null) {
+                  game.updatePlayer(msgOb, client.uuid);
+                }
+                break;
             };
         });
 
@@ -313,6 +347,6 @@
             console.log('\t socket.io:: client disconnected ' + client.uuid );
             //TODO: FIX this up
             //Remove player from uList
-            playerDisconnect(client.uuid);
+            // playerDisconnect(client.uuid);
         }); //client.on disconnect
     }); //sio.sockets.on connection
