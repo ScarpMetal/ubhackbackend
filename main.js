@@ -102,15 +102,9 @@
     /*
      * Object containing information about the Links.
      */
-    var LinkPages = function LinkPages() {
-      this.links = [];
+    var LinkLevel = function LinkLevel(arr) {
+      this.links = arr;
       this.chosen = null;
-    }
-
-    LinkPages.prototype.addLinks = function(arr) {
-      arr.forEach(function(item,index){
-        // TODO ADD LINKS
-      });
     }
 
     /*
@@ -123,7 +117,7 @@
 
       this.toUuid = toUuid; //original game recipient
       this.toPlayer = toPlayer;
-      this.LinkPages = new LinkPages();
+      this.linkLevels = [];
       
       //send out requests to initial players
       toPlayer.client.emit(PLAYER_INFO, JSON.stringify({
@@ -191,15 +185,38 @@
     Game.prototype.spaceBar = function(uuid){
       if(fromUuid == uuid) {
         if(fromPlayer.isChaser()) {
-          //TODO LOOK THROUGH LINKS
+          if(fromPlayer.linkLevel < toPlayer.linkLevel) {
+            var link = this.linkLevels[fromPlayer.linkLevel].chosen
+            //TODO FROM PLAYER CHECK IF OVER
+          }
         } else {
-          //TODO LOOK THROUGH LINKS
+          //TODO FIND CHOSEN LINK AND SET IT
         }
       } else if(toUuid == uuid) {
         if(toPlayer.isChaser()) {
-          //TODO LOOK THROUGH LINKS
+          if(toPlayer.linkLevel < fromPlayer.linkLevel) {
+            var link = this.linkLevels[toPlayer.linkLevel].chosen
+            //TODO TO PLAYER CHECK IF OVER
+          }
         } else {
-          //TODO LOOK THROUGH LINKS
+          //TODO FIND CHOSEN LINK AND SET IT
+        }
+      }
+    }
+
+    /*
+     * Adds a new LinkLevel an progresses player if correct.
+     */
+    Game.prototype.linkLevel = function(msgJson, uuid) {
+      if(fromUuid == uuid) {
+        if(!fromPlayer.isChaser()) {
+          this.linkLevels.push(new LinkLevel(msgJson.links));
+          this.fromPlayer.level = this.fromPlayer.level + 1;
+        }
+      } else if(toUuid == uuid) {
+        if(!toPlayer.isChaser()) {
+          this.linkLevels.push(new LinkLevel(msgJson.links));
+          this.toPlayer.level = this.toPlayer.level + 1;
         }
       }
     }
@@ -395,7 +412,14 @@
                 console.log("space bar hit");
                 var game = getGameFromGameUuid(msgOb.game_uuid);
                 if(game != null) {
-                  game.updatePlayer(msgOb, client.uuid);
+                  game.spaceBar(client.uuid);
+                }
+                break;
+              case "link_level":
+                console.log("received link level");
+                var game = getGameFromGameUuid(msgOb.game_uuid);
+                if(game != null) {
+                  game.linkLevel(msgOb, client.uuid);
                 }
             };
         });
